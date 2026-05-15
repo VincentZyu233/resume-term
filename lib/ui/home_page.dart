@@ -137,9 +137,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  void _splitSelectedPane(SplitAction action, BoxConstraints constraints) {
+  void _splitSelectedPane(SplitAction action, BoxConstraints constraints, {String? targetLeafId}) {
     final config = _config;
-    final selectedId = _selectedLeafId;
+    final selectedId = targetLeafId ?? _selectedLeafId;
     if (config == null || selectedId == null) return;
 
     final actualDirection = switch (action) {
@@ -192,6 +192,7 @@ class _HomePageState extends State<HomePage> {
         final config = _config!;
         return Scaffold(
           appBar: AppBar(
+            toolbarHeight: 40,
             title: const Text('Resume-Term'),
             actions: [
               IconButton(
@@ -262,7 +263,7 @@ class _HomePageState extends State<HomePage> {
           body: LayoutBuilder(
             builder: (context, constraints) {
               return Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(8, 4, 8, 2),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -288,17 +289,17 @@ class _HomePageState extends State<HomePage> {
                           ? CrossFadeState.showFirst
                           : CrossFadeState.showSecond,
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 4),
                     Expanded(
                       child: Row(
                         children: [
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 220),
-                            width: _showWorkspacePanel ? 280 : 52,
+                            width: _showWorkspacePanel ? 200 : 52,
                             child: _showWorkspacePanel
                                 ? Card(
                                     child: Padding(
-                                      padding: const EdgeInsets.all(12),
+                                      padding: const EdgeInsets.all(6),
                                       child: WorkspaceSummary(
                                         session: config.activeSession,
                                         selectedLeafId: _selectedLeafId,
@@ -318,25 +319,25 @@ class _HomePageState extends State<HomePage> {
                                     },
                                   ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 6),
                           Expanded(
                             flex: 8,
                             child: Card(
                               child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: WorkspaceTree(
+                                padding: const EdgeInsets.all(6),
+                                child:                 WorkspaceTree(
                                   root: config.activeSession.root,
                                   selectedLeafId: _selectedLeafId,
                                   onSelectLeaf: _selectLeaf,
-                                  onSplit: (action) => _splitSelectedPane(action, constraints),
+                                  onSplit: (action, leafId) => _splitSelectedPane(action, constraints, targetLeafId: leafId),
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(width: 16),
+                          const SizedBox(width: 6),
                           AnimatedContainer(
                             duration: const Duration(milliseconds: 220),
-                            width: _showInspectorPanel ? 320 : 52,
+                            width: _showInspectorPanel ? 240 : 52,
                             child: _showInspectorPanel
                                 ? PaneInspector(
                                     key: ValueKey<String?>(_selectedLeafId),
@@ -358,7 +359,7 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 2),
                     Text(
                       'Default shell order: ${ShellDefaults.shellPriority().join(' > ')}',
                       style: Theme.of(context).textTheme.bodySmall,
@@ -398,6 +399,8 @@ class _ToolbarRow extends StatelessWidget {
             controller: configDirController,
             decoration: InputDecoration(
               labelText: 'Config directory',
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
               border: const OutlineInputBorder(),
               suffixIcon: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -421,19 +424,19 @@ class _ToolbarRow extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 6),
         FilledButton(
           onPressed: onApplyDir,
           child: const Text('Apply dir'),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         OutlinedButton(
           onPressed: () {
             onReload();
           },
           child: const Text('Reload'),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 6),
         Expanded(
           child: Text(
             status,
@@ -462,8 +465,8 @@ class _CollapsedStrip extends StatelessWidget {
       onTap: onExpand,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
@@ -525,7 +528,7 @@ class WorkspaceTree extends StatelessWidget {
   final PaneNode root;
   final String? selectedLeafId;
   final ValueChanged<String> onSelectLeaf;
-  final ValueChanged<SplitAction> onSplit;
+  final void Function(SplitAction action, String leafId) onSplit;
 
   @override
   Widget build(BuildContext context) {
@@ -586,9 +589,9 @@ class WorkspaceSummary extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         Text('${leaves.length} pane(s)', style: Theme.of(context).textTheme.bodySmall),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         Expanded(
           child: ListView.separated(
             itemCount: leaves.length,
@@ -600,9 +603,9 @@ class WorkspaceSummary extends StatelessWidget {
                 onTap: () => onSelectLeaf(leaf.id),
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: selected
                           ? Theme.of(context).colorScheme.primary
@@ -617,7 +620,7 @@ class WorkspaceSummary extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       Text(
                         leaf.command.isEmpty ? leaf.executable : leaf.command,
                         maxLines: 2,
@@ -647,7 +650,7 @@ class _PaneNodeView extends StatelessWidget {
   final PaneNode node;
   final String? selectedLeafId;
   final ValueChanged<String> onSelectLeaf;
-  final ValueChanged<SplitAction> onSplit;
+  final void Function(SplitAction action, String leafId) onSplit;
 
   @override
   Widget build(BuildContext context) {
@@ -657,16 +660,16 @@ class _PaneNodeView extends StatelessWidget {
       return GestureDetector(
         onTap: () => onSelectLeaf(leaf.id),
         child: Container(
-          margin: const EdgeInsets.all(6),
+          margin: const EdgeInsets.all(2),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: selected ? Theme.of(context).colorScheme.primary : Colors.white24,
               width: selected ? 2 : 1,
             ),
           ),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(6),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -680,7 +683,7 @@ class _PaneNodeView extends StatelessWidget {
                     ),
                     PopupMenuButton<SplitAction>(
                       icon: const Icon(Icons.add_box_outlined),
-                      onSelected: onSplit,
+                      onSelected: (action) => onSplit(action, leaf.id),
                       itemBuilder: (context) => const [
                         PopupMenuItem(
                           value: SplitAction.horizontal,
@@ -698,7 +701,7 @@ class _PaneNodeView extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text('shell: ${leaf.shell}'),
                 Text('exe: ${leaf.executable}'),
                 if (leaf.command.isNotEmpty) Text('cmd: ${leaf.command}'),
@@ -824,12 +827,12 @@ class _PaneInspectorState extends State<PaneInspector> {
   Widget build(BuildContext context) {
     return Card(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text('Pane inspector', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
             TextField(
               controller: _titleController,
               decoration: const InputDecoration(labelText: 'Title'),
