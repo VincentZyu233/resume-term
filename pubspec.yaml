@@ -1,7 +1,7 @@
 name: resume_term
 description: Resume-Term desktop workspace manager
 publish_to: "none"
-version: 0.0.1-alpha.1+20260515
+version: 0.0.2-alpha.1+20260515
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  file_selector: ^1.0.3
   path: ^1.9.0
   yaml: ^3.1.2
 
@@ -19,4 +20,3 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-

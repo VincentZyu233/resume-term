@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../models/workspace_config.dart';
@@ -19,16 +22,29 @@ class _HomePageState extends State<HomePage> {
   WorkspaceConfig? _config;
   String? _selectedLeafId;
   String _status = 'Loading...';
+  bool _showTopTools = true;
+  bool _showWorkspacePanel = true;
+  bool _showInspectorPanel = true;
+  Timer? _autoCollapseTimer;
 
   @override
   void initState() {
     super.initState();
     _configDirController = TextEditingController(text: ConfigStore.defaultConfigDir());
     _loader = _load();
+    _autoCollapseTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      setState(() {
+        _showTopTools = false;
+        _showWorkspacePanel = false;
+        _showInspectorPanel = false;
+      });
+    });
   }
 
   @override
   void dispose() {
+    _autoCollapseTimer?.cancel();
     _configDirController.dispose();
     super.dispose();
   }
@@ -65,6 +81,27 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       _loader = _load();
     });
+  }
+
+  Future<void> _pickConfigDirectory() async {
+    try {
+      final selectedDir = await getDirectoryPath(
+        initialDirectory: _configDirController.text.trim().isEmpty
+            ? ConfigStore.defaultConfigDir()
+            : _configDirController.text.trim(),
+        confirmButtonText: 'Use this folder',
+      );
+      if (selectedDir == null || !mounted) return;
+      setState(() {
+        _configDirController.text = selectedDir;
+        _status = 'Selected config directory';
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _status = 'Directory picker failed: $error';
+      });
+    }
   }
 
   void _selectLeaf(String id) {
@@ -141,6 +178,33 @@ class _HomePageState extends State<HomePage> {
           appBar: AppBar(
             title: const Text('Resume-Term'),
             actions: [
+              IconButton(
+                tooltip: _showTopTools ? 'Hide tools' : 'Show tools',
+                onPressed: () {
+                  setState(() {
+                    _showTopTools = !_showTopTools;
+                  });
+                },
+                icon: Icon(_showTopTools ? Icons.unfold_less : Icons.unfold_more),
+              ),
+              IconButton(
+                tooltip: _showWorkspacePanel ? 'Hide workspace panel' : 'Show workspace panel',
+                onPressed: () {
+                  setState(() {
+                    _showWorkspacePanel = !_showWorkspacePanel;
+                  });
+                },
+                icon: Icon(_showWorkspacePanel ? Icons.left_panel_close : Icons.left_panel_open),
+              ),
+              IconButton(
+                tooltip: _showInspectorPanel ? 'Hide inspector panel' : 'Show inspector panel',
+                onPressed: () {
+                  setState(() {
+                    _showInspectorPanel = !_showInspectorPanel;
+                  });
+                },
+                icon: Icon(_showInspectorPanel ? Icons.right_panel_close : Icons.right_panel_open),
+              ),
               Builder(
                 builder: (context) {
                   return PopupMenuButton<SplitAction>(
@@ -186,18 +250,59 @@ class _HomePageState extends State<HomePage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _ToolbarRow(
-                      configDirController: _configDirController,
-                      status: _status,
-                      onApplyDir: _applyConfigDir,
-                      onReload: _load,
+                    AnimatedCrossFade(
+                      duration: const Duration(milliseconds: 220),
+                      firstChild: _ToolbarRow(
+                        configDirController: _configDirController,
+                        status: _status,
+                        onApplyDir: _applyConfigDir,
+                        onReload: _load,
+                        onPickDirectory: _pickConfigDirectory,
+                      ),
+                      secondChild: _CollapsedStrip(
+                        text: _status,
+                        icon: Icons.tune,
+                        onExpand: () {
+                          setState(() {
+                            _showTopTools = true;
+                          });
+                        },
+                      ),
+                      crossFadeState: _showTopTools
+                          ? CrossFadeState.showFirst
+                          : CrossFadeState.showSecond,
                     ),
                     const SizedBox(height: 16),
                     Expanded(
                       child: Row(
                         children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 220),
+                            width: _showWorkspacePanel ? 280 : 52,
+                            child: _showWorkspacePanel
+                                ? Card(
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12),
+                                      child: WorkspaceSummary(
+                                        session: config.activeSession,
+                                        selectedLeafId: _selectedLeafId,
+                                        onSelectLeaf: _selectLeaf,
+                                      ),
+                                    ),
+                                  )
+                                : _SideCollapsedButton(
+                                    icon: Icons.account_tree_outlined,
+                                    tooltip: 'Show workspace panel',
+                                    onTap: () {
+                                      setState(() {
+                                        _showWorkspacePanel = true;
+                                      });
+                                    },
+                                  ),
+                          ),
+                          const SizedBox(width: 16),
                           Expanded(
-                            flex: 3,
+                            flex: 8,
                             child: Card(
                               child: Padding(
                                 padding: const EdgeInsets.all(12),
@@ -211,15 +316,26 @@ class _HomePageState extends State<HomePage> {
                             ),
                           ),
                           const SizedBox(width: 16),
-                          Expanded(
-                            flex: 2,
-                            child: PaneInspector(
-                              key: ValueKey<String?>(_selectedLeafId),
-                              leaf: config.activeSession.findLeaf(_selectedLeafId ?? '') ??
-                                  config.activeSession.firstLeaf() ??
-                                  PaneLeaf.defaultLeaf(),
-                              onSave: _updateLeaf,
-                            ),
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 220),
+                            width: _showInspectorPanel ? 320 : 52,
+                            child: _showInspectorPanel
+                                ? PaneInspector(
+                                    key: ValueKey<String?>(_selectedLeafId),
+                                    leaf: config.activeSession.findLeaf(_selectedLeafId ?? '') ??
+                                        config.activeSession.firstLeaf() ??
+                                        PaneLeaf.defaultLeaf(),
+                                    onSave: _updateLeaf,
+                                  )
+                                : _SideCollapsedButton(
+                                    icon: Icons.tune,
+                                    tooltip: 'Show inspector panel',
+                                    onTap: () {
+                                      setState(() {
+                                        _showInspectorPanel = true;
+                                      });
+                                    },
+                                  ),
                           ),
                         ],
                       ),
@@ -246,12 +362,14 @@ class _ToolbarRow extends StatelessWidget {
     required this.status,
     required this.onApplyDir,
     required this.onReload,
+    required this.onPickDirectory,
   });
 
   final TextEditingController configDirController;
   final String status;
   final VoidCallback onApplyDir;
   final Future<void> Function() onReload;
+  final Future<void> Function() onPickDirectory;
 
   @override
   Widget build(BuildContext context) {
@@ -260,9 +378,28 @@ class _ToolbarRow extends StatelessWidget {
         Expanded(
           child: TextField(
             controller: configDirController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Config directory',
-              border: OutlineInputBorder(),
+              border: const OutlineInputBorder(),
+              suffixIcon: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    tooltip: 'Clear path',
+                    onPressed: () {
+                      configDirController.clear();
+                    },
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                  IconButton(
+                    tooltip: 'Browse directory',
+                    onPressed: () {
+                      onPickDirectory();
+                    },
+                    icon: const Icon(Icons.folder_open_rounded),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -290,6 +427,74 @@ class _ToolbarRow extends StatelessWidget {
   }
 }
 
+class _CollapsedStrip extends StatelessWidget {
+  const _CollapsedStrip({
+    required this.text,
+    required this.icon,
+    required this.onExpand,
+  });
+
+  final String text;
+  final IconData icon;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onExpand,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const Icon(Icons.expand_more),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SideCollapsedButton extends StatelessWidget {
+  const _SideCollapsedButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Center(
+        child: Tooltip(
+          message: tooltip,
+          child: IconButton(
+            onPressed: onTap,
+            icon: Icon(icon),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class WorkspaceTree extends StatelessWidget {
   const WorkspaceTree({
     super.key,
@@ -311,6 +516,88 @@ class WorkspaceTree extends StatelessWidget {
       selectedLeafId: selectedLeafId,
       onSelectLeaf: onSelectLeaf,
       onSplit: onSplit,
+    );
+  }
+}
+
+class WorkspaceSummary extends StatelessWidget {
+  const WorkspaceSummary({
+    super.key,
+    required this.session,
+    required this.selectedLeafId,
+    required this.onSelectLeaf,
+  });
+
+  final WorkspaceSession session;
+  final String? selectedLeafId;
+  final ValueChanged<String> onSelectLeaf;
+
+  @override
+  Widget build(BuildContext context) {
+    final leaves = <PaneLeaf>[];
+
+    void collect(PaneNode node) {
+      if (node is PaneLeaf) {
+        leaves.add(node);
+        return;
+      }
+      final split = node as PaneSplit;
+      collect(split.first);
+      collect(split.second);
+    }
+
+    collect(session.root);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(session.name, style: Theme.of(context).textTheme.titleMedium),
+        const SizedBox(height: 12),
+        Text('${leaves.length} pane(s)', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 12),
+        Expanded(
+          child: ListView.separated(
+            itemCount: leaves.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            itemBuilder: (context, index) {
+              final leaf = leaves[index];
+              final selected = leaf.id == selectedLeafId;
+              return InkWell(
+                onTap: () => onSelectLeaf(leaf.id),
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        leaf.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        leaf.command.isEmpty ? leaf.executable : leaf.command,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }
