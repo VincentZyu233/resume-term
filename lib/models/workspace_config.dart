@@ -282,25 +282,29 @@ PaneNode paneNodeFromMap(Map<String, dynamic> json) {
 }
 
 class WorkspaceSession {
-  WorkspaceSession({required this.name, required this.root});
+  WorkspaceSession({required this.id, required this.name, required this.root});
 
   factory WorkspaceSession.fromMap(Map<String, dynamic> json) {
     return WorkspaceSession(
+      id: _string(json['id'], fallback: _newId('session')),
       name: _string(json['name'], fallback: 'Session'),
       root: paneNodeFromMap(_map(json['root'])),
     );
   }
 
+  final String id;
   final String name;
   final PaneNode root;
 
   Map<String, dynamic> toMap() => <String, dynamic>{
+        'id': id,
         'name': name,
         'root': root.toMap(),
       };
 
-  WorkspaceSession copyWith({String? name, PaneNode? root}) {
-    return WorkspaceSession(name: name ?? this.name, root: root ?? this.root);
+  WorkspaceSession copyWith({String? id, String? name, PaneNode? root}) {
+    return WorkspaceSession(
+        id: id ?? this.id, name: name ?? this.name, root: root ?? this.root);
   }
 
   PaneLeaf? firstLeaf() => root.firstLeaf();
@@ -318,21 +322,21 @@ class WorkspaceConfig {
   WorkspaceConfig({
     required this.version,
     required this.configDir,
-    required this.selectedSession,
+    this.startupSessionId,
     required this.sessions,
   });
 
   factory WorkspaceConfig.defaults({required String configDir}) {
+    final defaultSession = WorkspaceSession(
+      id: _newId('session'),
+      name: 'Default',
+      root: PaneLeaf.defaultLeaf(title: 'Pane 1'),
+    );
     return WorkspaceConfig(
       version: 1,
       configDir: configDir,
-      selectedSession: 0,
-      sessions: <WorkspaceSession>[
-        WorkspaceSession(
-          name: 'Default',
-          root: PaneLeaf.defaultLeaf(title: 'Pane 1'),
-        ),
-      ],
+      startupSessionId: defaultSession.id,
+      sessions: <WorkspaceSession>[defaultSession],
     );
   }
 
@@ -344,13 +348,26 @@ class WorkspaceConfig {
         : _list(json['sessions'])
             .map((item) => WorkspaceSession.fromMap(_map(item)))
             .toList();
+
+    String? startupSessionId;
+    final rawStartup = json['startup_session_id'];
+    if (rawStartup != null && rawStartup.toString().isNotEmpty) {
+      startupSessionId = rawStartup.toString();
+    } else if (json.containsKey('selected_session')) {
+      final idx = _int(json['selected_session'], fallback: 0);
+      if (sessions.isNotEmpty && idx >= 0 && idx < sessions.length) {
+        startupSessionId = sessions[idx].id;
+      }
+    }
+
     return WorkspaceConfig(
       version: _int(json['version'], fallback: 1),
       configDir: _string(json['config_dir']),
-      selectedSession: _int(json['selected_session'], fallback: 0),
+      startupSessionId: startupSessionId,
       sessions: sessions.isEmpty
           ? <WorkspaceSession>[
               WorkspaceSession(
+                id: _newId('session'),
                 name: 'Default',
                 root: PaneLeaf.defaultLeaf(title: 'Pane 1'),
               ),
@@ -361,34 +378,42 @@ class WorkspaceConfig {
 
   final int version;
   final String configDir;
-  final int selectedSession;
+  final String? startupSessionId;
   final List<WorkspaceSession> sessions;
 
   WorkspaceSession get activeSession {
-    final index = selectedSession.clamp(0, sessions.length - 1).toInt();
-    return sessions[index];
+    if (startupSessionId != null) {
+      final found = sessions.where((s) => s.id == startupSessionId).firstOrNull;
+      if (found != null) return found;
+    }
+    return sessions.first;
   }
 
   WorkspaceConfig copyWith({
     int? version,
     String? configDir,
-    int? selectedSession,
+    String? startupSessionId,
     List<WorkspaceSession>? sessions,
   }) {
     return WorkspaceConfig(
       version: version ?? this.version,
       configDir: configDir ?? this.configDir,
-      selectedSession: selectedSession ?? this.selectedSession,
+      startupSessionId: startupSessionId ?? this.startupSessionId,
       sessions: sessions ?? this.sessions,
     );
   }
 
-  Map<String, dynamic> toMap() => <String, dynamic>{
-        'version': version,
-        'config_dir': configDir,
-        'selected_session': selectedSession,
-        'sessions': sessions.map((session) => session.toMap()).toList(),
-      };
+  Map<String, dynamic> toMap() {
+    final map = <String, dynamic>{
+      'version': version,
+      'config_dir': configDir,
+      'sessions': sessions.map((session) => session.toMap()).toList(),
+    };
+    if (startupSessionId != null && startupSessionId!.isNotEmpty) {
+      map['startup_session_id'] = startupSessionId;
+    }
+    return map;
+  }
 
   String toYamlString() {
     final yaml = _yamlFromValue(toMap());
@@ -398,9 +423,11 @@ class WorkspaceConfig {
   String toPrettyJson() => const JsonEncoder.withIndent('  ').convert(toMap());
 
   WorkspaceConfig updateActiveSession(WorkspaceSession Function(WorkspaceSession session) updater) {
-    final index = selectedSession.clamp(0, sessions.length - 1).toInt();
+    final active = activeSession;
+    final index = sessions.indexWhere((s) => s.id == active.id);
+    if (index < 0) return this;
     final nextSessions = sessions.toList();
-    nextSessions[index] = updater(activeSession);
+    nextSessions[index] = updater(active);
     return copyWith(sessions: nextSessions);
   }
 }

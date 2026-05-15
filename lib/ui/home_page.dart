@@ -77,6 +77,22 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  Future<void> _setStartupLayout(String sessionId) async {
+    final config = _config;
+    if (config == null) return;
+    final store = ConfigStore(_configDirController.text.trim());
+    final next = config.copyWith(
+      configDir: _configDirController.text.trim(),
+      startupSessionId: sessionId,
+    );
+    await store.save(next);
+    if (!mounted) return;
+    setState(() {
+      _config = next;
+      _status = 'Startup layout set';
+    });
+  }
+
   void _applyConfigDir() {
     setState(() {
       _loader = _load();
@@ -194,7 +210,7 @@ class _HomePageState extends State<HomePage> {
                     _showWorkspacePanel = !_showWorkspacePanel;
                   });
                 },
-                icon: Icon(_showWorkspacePanel ? Icons.left_panel_close : Icons.left_panel_open),
+                icon: Icon(_showWorkspacePanel ? Icons.chevron_left : Icons.chevron_right),
               ),
               IconButton(
                 tooltip: _showInspectorPanel ? 'Hide inspector panel' : 'Show inspector panel',
@@ -203,7 +219,7 @@ class _HomePageState extends State<HomePage> {
                     _showInspectorPanel = !_showInspectorPanel;
                   });
                 },
-                icon: Icon(_showInspectorPanel ? Icons.right_panel_close : Icons.right_panel_open),
+                icon: Icon(_showInspectorPanel ? Icons.chevron_right : Icons.chevron_left),
               ),
               Builder(
                 builder: (context) {
@@ -258,8 +274,8 @@ class _HomePageState extends State<HomePage> {
                         onApplyDir: _applyConfigDir,
                         onReload: _load,
                         onPickDirectory: _pickConfigDirectory,
-                      ),
-                      secondChild: _CollapsedStrip(
+                    ),
+                    secondChild: _CollapsedStrip(
                         text: _status,
                         icon: Icons.tune,
                         onExpand: () {
@@ -287,6 +303,8 @@ class _HomePageState extends State<HomePage> {
                                         session: config.activeSession,
                                         selectedLeafId: _selectedLeafId,
                                         onSelectLeaf: _selectLeaf,
+                                        isStartup: config.activeSession.id == config.startupSessionId,
+                                        onSetStartup: _setStartupLayout,
                                       ),
                                     ),
                                   )
@@ -526,11 +544,15 @@ class WorkspaceSummary extends StatelessWidget {
     required this.session,
     required this.selectedLeafId,
     required this.onSelectLeaf,
+    required this.isStartup,
+    required this.onSetStartup,
   });
 
   final WorkspaceSession session;
   final String? selectedLeafId;
   final ValueChanged<String> onSelectLeaf;
+  final bool isStartup;
+  final ValueChanged<String> onSetStartup;
 
   @override
   Widget build(BuildContext context) {
@@ -551,7 +573,19 @@ class WorkspaceSummary extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(session.name, style: Theme.of(context).textTheme.titleMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text(session.name, style: Theme.of(context).textTheme.titleMedium),
+            ),
+            IconButton(
+              icon: Icon(isStartup ? Icons.star : Icons.star_border),
+              color: isStartup ? Colors.amber : null,
+              tooltip: isStartup ? 'Startup layout' : 'Set as startup layout',
+              onPressed: () => onSetStartup(session.id),
+            ),
+          ],
+        ),
         const SizedBox(height: 12),
         Text('${leaves.length} pane(s)', style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
