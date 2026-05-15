@@ -1,0 +1,162 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check-commit:
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.gate.outputs.should_build }}
+      should_release: ${{ steps.gate.outputs.should_release }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Decide build mode
+        id: gate
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            MESSAGE="${{ github.event.pull_request.title }}"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MESSAGE="build action"
+          else
+            MESSAGE="${{ github.event.head_commit.message }}"
+          fi
+
+          echo "Commit message: $MESSAGE"
+
+          if echo "$MESSAGE" | grep -qi "build release"; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "should_release=true" >> "$GITHUB_OUTPUT"
+          elif echo "$MESSAGE" | grep -qi "build action"; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Extract version
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | head -1 | awk '{print $2}' | cut -d+ -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: check-commit
+    if: needs.check-commit.outputs.should_build == 'true'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+            flutter_platform: windows
+            artifact_name: resume-term-windows-x64
+            artifact_path: build/windows/x64/runner/Release/
+            build_command: flutter build windows --release
+          - platform: linux-x64
+            os: ubuntu-latest
+            flutter_platform: linux
+            artifact_name: resume-term-linux-x64
+            artifact_path: build/linux/x64/release/bundle/
+            build_command: flutter build linux --release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux desktop dependencies
+        if: matrix.platform == 'linux-x64'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+
+      - name: Bootstrap Flutter desktop platform
+        run: flutter create --project-name resume_term --platforms=${{ matrix.flutter_platform }} .
+
+      - name: Flutter doctor
+        run: flutter doctor -v
+
+      - name: Install Dart packages
+        run: flutter pub get
+
+      - name: Analyze Flutter code
+        run: flutter analyze
+
+      - name: Check Rust core
+        run: cargo check --manifest-path rust/Cargo.toml
+
+      - name: Build desktop app
+        run: ${{ matrix.build_command }}
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_path }}
+          retention-days: 7
+
+  release:
+    needs: [check-commit, build]
+    if: needs.check-commit.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Package release files
+        shell: bash
+        run: |
+          VERSION="${{ needs.check-commit.outputs.version }}"
+
+          cd artifacts/resume-term-windows-x64
+          zip -r "../resume-term-windows-x64-v${VERSION}.zip" .
+          cd ../..
+
+          cd artifacts/resume-term-linux-x64
+          tar -czf "../resume-term-linux-x64-v${VERSION}.tar.gz" .
+          cd ../..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.check-commit.outputs.version }}
+          name: Resume-Term v${{ needs.check-commit.outputs.version }}
+          files: |
+            artifacts/resume-term-windows-x64-v*.zip
+            artifacts/resume-term-linux-x64-v*.tar.gz
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

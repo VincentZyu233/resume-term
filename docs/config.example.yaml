@@ -1,0 +1,16 @@
+version: 1
+config_dir: "~/resume-term/config"
+selected_session: 0
+sessions:
+  - name: "Default"
+    root:
+      type: "leaf"
+      id: "leaf-root"
+      title: "Terminal 1"
+      shell: "pwsh"
+      executable: "pwsh"
+      command: "ssh user@127.0.0.1"
+      working_dir: "~"
+      args:
+        - "-NoLogo"
+
