@@ -145,6 +145,7 @@ class PaneLeaf extends PaneNode {
     );
   }
 
+  @override
   final String id;
   final String title;
   final String shell;
@@ -219,6 +220,7 @@ class PaneSplit extends PaneNode {
     );
   }
 
+  @override
   final String id;
   final SplitDirection direction;
   final double ratio;
@@ -390,7 +392,7 @@ class WorkspaceConfig {
 
   String toYamlString() {
     final yaml = _yamlFromValue(toMap());
-    return yaml.trimRight() + '\n';
+    return '${yaml.trimRight()}\n';
   }
 
   String toPrettyJson() => const JsonEncoder.withIndent('  ').convert(toMap());

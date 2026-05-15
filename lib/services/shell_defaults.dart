@@ -10,7 +10,6 @@ class ShellDefaults {
     if (Platform.isWindows) {
       return <String>['pwsh', 'powershell', 'cmd'];
     }
-    return <String>['$SHELL', 'bash', 'zsh', 'sh', 'ash'];
+    return <String>['\$SHELL', 'bash', 'zsh', 'sh', 'ash'];
   }
 }
-
