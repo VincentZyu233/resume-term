@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/workspace_config.dart';
 import '../services/config_store.dart';
 import '../services/shell_defaults.dart';
+import '../widgets/terminal_pane.dart';
 
 enum SplitAction { horizontal, vertical, auto }
 
@@ -306,6 +307,7 @@ class _HomePageState extends State<HomePage> {
                                         onSelectLeaf: _selectLeaf,
                                         isStartup: config.activeSession.id == config.startupSessionId,
                                         onSetStartup: _setStartupLayout,
+                                        onCollapse: () => setState(() => _showWorkspacePanel = false),
                                       ),
                                     ),
                                   )
@@ -345,6 +347,7 @@ class _HomePageState extends State<HomePage> {
                                         config.activeSession.firstLeaf() ??
                                         PaneLeaf.defaultLeaf(),
                                     onSave: _updateLeaf,
+                                    onCollapse: () => setState(() => _showInspectorPanel = false),
                                   )
                                 : _SideCollapsedButton(
                                     icon: Icons.tune,
@@ -549,6 +552,7 @@ class WorkspaceSummary extends StatelessWidget {
     required this.onSelectLeaf,
     required this.isStartup,
     required this.onSetStartup,
+    required this.onCollapse,
   });
 
   final WorkspaceSession session;
@@ -556,6 +560,7 @@ class WorkspaceSummary extends StatelessWidget {
   final ValueChanged<String> onSelectLeaf;
   final bool isStartup;
   final ValueChanged<String> onSetStartup;
+  final VoidCallback onCollapse;
 
   @override
   Widget build(BuildContext context) {
@@ -634,6 +639,15 @@ class WorkspaceSummary extends StatelessWidget {
             },
           ),
         ),
+        const SizedBox(height: 4),
+        SizedBox(
+          height: 28,
+          child: TextButton.icon(
+            onPressed: onCollapse,
+            icon: const Icon(Icons.chevron_left, size: 14),
+            label: const Text('收起', style: TextStyle(fontSize: 11)),
+          ),
+        ),
       ],
     );
   }
@@ -668,44 +682,37 @@ class _PaneNodeView extends StatelessWidget {
               width: selected ? 2 : 1,
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(6),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(7),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        leaf.title,
-                        style: Theme.of(context).textTheme.titleMedium,
+                Container(
+                  height: 24,
+                  color: Colors.black26,
+                  padding: const EdgeInsets.only(left: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          leaf.title,
+                          style: const TextStyle(fontSize: 11, color: Colors.white70),
+                        ),
                       ),
-                    ),
-                    PopupMenuButton<SplitAction>(
-                      icon: const Icon(Icons.add_box_outlined),
-                      onSelected: (action) => onSplit(action, leaf.id),
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(
-                          value: SplitAction.horizontal,
-                          child: Text('拆分视图 - 上下'),
-                        ),
-                        PopupMenuItem(
-                          value: SplitAction.vertical,
-                          child: Text('拆分视图 - 左右'),
-                        ),
-                        PopupMenuItem(
-                          value: SplitAction.auto,
-                          child: Text('拆分视图 - 自动'),
-                        ),
-                      ],
-                    ),
-                  ],
+                      PopupMenuButton<SplitAction>(
+                        icon: const Icon(Icons.add_box_outlined, size: 16, color: Colors.white54),
+                        onSelected: (action) => onSplit(action, leaf.id),
+                        itemBuilder: (context) => const [
+                          PopupMenuItem(value: SplitAction.horizontal, child: Text('拆分视图 - 上下')),
+                          PopupMenuItem(value: SplitAction.vertical, child: Text('拆分视图 - 左右')),
+                          PopupMenuItem(value: SplitAction.auto, child: Text('拆分视图 - 自动')),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 4),
-                Text('shell: ${leaf.shell}'),
-                Text('exe: ${leaf.executable}'),
-                if (leaf.command.isNotEmpty) Text('cmd: ${leaf.command}'),
-                if (leaf.workingDir.isNotEmpty) Text('dir: ${leaf.workingDir}'),
+                Expanded(
+                  child: TerminalPane(leafId: leaf.id, config: leaf),
+                ),
               ],
             ),
           ),
@@ -748,10 +755,12 @@ class PaneInspector extends StatefulWidget {
     super.key,
     required this.leaf,
     required this.onSave,
+    required this.onCollapse,
   });
 
   final PaneLeaf leaf;
   final ValueChanged<PaneLeaf> onSave;
+  final VoidCallback onCollapse;
 
   @override
   State<PaneInspector> createState() => _PaneInspectorState();
@@ -857,10 +866,19 @@ class _PaneInspectorState extends State<PaneInspector> {
               controller: _argsController,
               decoration: const InputDecoration(labelText: 'Args (comma separated)'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             FilledButton(
               onPressed: _save,
               child: const Text('Save pane'),
+            ),
+            const SizedBox(height: 4),
+            SizedBox(
+              height: 28,
+              child: TextButton.icon(
+                onPressed: widget.onCollapse,
+                icon: const Icon(Icons.chevron_right, size: 14),
+                label: const Text('收起', style: TextStyle(fontSize: 11)),
+              ),
             ),
           ],
         ),

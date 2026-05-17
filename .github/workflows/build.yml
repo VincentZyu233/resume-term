@@ -108,11 +108,23 @@ jobs:
       - name: Analyze Flutter code
         run: flutter analyze
 
-      - name: Check Rust core
+      - name: Check Rust core (static analysis)
         run: cargo check --manifest-path rust/Cargo.toml
+
+      - name: Build Rust cdylib
+        run: cargo build --release --manifest-path rust/Cargo.toml
 
       - name: Build desktop app
         run: ${{ matrix.build_command }}
+
+      - name: Bundle Rust cdylib
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows-x64" ]; then
+            cp rust/target/release/resume_term_core.dll ${{ matrix.artifact_path }}
+          elif [ "${{ matrix.platform }}" = "linux-x64" ]; then
+            cp rust/target/release/libresume_term_core.so ${{ matrix.artifact_path }}lib/
+          fi
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

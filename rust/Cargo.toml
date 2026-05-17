@@ -7,8 +7,9 @@ license = "MIT"
 [lib]
 name = "resume_term_core"
 path = "src/lib.rs"
+crate-type = ["cdylib", "lib"]
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
-
+portable-pty = "0.8"
