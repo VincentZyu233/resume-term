@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:xterm/flutter.dart';
 import 'package:xterm/xterm.dart';
 
 import '../models/workspace_config.dart';
@@ -37,6 +36,25 @@ class _TerminalPaneState extends State<TerminalPane> {
         foreground: const Color(0xFF00FF00),
         cursor: const Color(0xFF00FF00),
         selection: const Color(0xFF6A8759),
+        black: const Color(0xFF000000),
+        red: const Color(0xFFAA0000),
+        green: const Color(0xFF00AA00),
+        yellow: const Color(0xFFAA5500),
+        blue: const Color(0xFF0000AA),
+        magenta: const Color(0xFFAA00AA),
+        cyan: const Color(0xFF00AAAA),
+        white: const Color(0xFFAAAAAA),
+        brightBlack: const Color(0xFF555555),
+        brightRed: const Color(0xFFFF5555),
+        brightGreen: const Color(0xFF55FF55),
+        brightYellow: const Color(0xFFFFFF55),
+        brightBlue: const Color(0xFF5555FF),
+        brightMagenta: const Color(0xFFFF55FF),
+        brightCyan: const Color(0xFF55FFFF),
+        brightWhite: const Color(0xFFFFFFFF),
+        searchHitForeground: const Color(0xFF000000),
+        searchHitBackground: const Color(0xFFFFD700),
+        searchHitBackgroundCurrent: const Color(0xFFFFA500),
       ),
     );
     _startTerminal();
@@ -77,7 +95,6 @@ class _TerminalPaneState extends State<TerminalPane> {
     if (_started) {
       TerminalService.instance.stop(widget.leafId);
     }
-    _terminal.dispose();
     super.dispose();
   }
 
