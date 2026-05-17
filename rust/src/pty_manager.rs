@@ -7,6 +7,8 @@ use std::time::Duration;
 
 use portable_pty::{native_pty_system, CommandBuilder, PtySize, ChildKiller};
 
+use crate::logger;
+
 pub struct PtySession {
     pub buffer: Arc<Mutex<Vec<u8>>>,
     pub writer: Arc<Mutex<Box<dyn Write + Send>>>,
@@ -34,10 +36,16 @@ fn try_spawn(
     cols: u16,
     rows: u16,
 ) -> Result<SpawnResult, String> {
+    logger::log_info(&format!("try_spawn: program={}, wd={:?}, cols={}, rows={}", program, working_dir, cols, rows));
     let pty_system = native_pty_system();
     let size = PtySize { rows, cols, pixel_width: 0, pixel_height: 0 };
 
-    let mut pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
+    let mut pair = pty_system.openpty(size).map_err(|e| {
+        let msg = format!("openpty failed: {}", e);
+        logger::log_error(&msg);
+        msg
+    })?;
+    logger::log_info("openpty OK");
 
     let mut cmd = CommandBuilder::new(program);
     for arg in args {
@@ -50,9 +58,26 @@ fn try_spawn(
     }
     cmd.env("TERM", "xterm-256color");
 
-    let child_killer = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
-    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let child_killer = pair.slave.spawn_command(cmd).map_err(|e| {
+        let msg = format!("spawn_command failed for '{}': {}", program, e);
+        logger::log_error(&msg);
+        msg
+    })?;
+    logger::log_info(&format!("spawn_command OK for '{}'", program));
+
+    let reader = pair.master.try_clone_reader().map_err(|e| {
+        let msg = format!("try_clone_reader failed: {}", e);
+        logger::log_error(&msg);
+        msg
+    })?;
+    logger::log_info("try_clone_reader OK");
+
+    let writer = pair.master.take_writer().map_err(|e| {
+        let msg = format!("take_writer failed: {}", e);
+        logger::log_error(&msg);
+        msg
+    })?;
+    logger::log_info("take_writer OK");
 
     Ok(SpawnResult { reader, writer, child_killer })
 }
@@ -67,6 +92,7 @@ pub fn spawn(
     rows: u16,
 ) -> Result<(), String> {
     let primary = executable.unwrap_or(shell);
+    logger::log_info(&format!("spawn: id={}, primary={}, wd={:?}, args={:?}", id, primary, working_dir, args));
 
     let candidates: Vec<&str> = if cfg!(target_os = "windows") {
         vec![primary, "powershell", "cmd"]
@@ -81,34 +107,52 @@ pub fn spawn(
         if !seen.insert(prog) {
             continue;
         }
+        logger::log_info(&format!("spawn: trying candidate '{}'", prog));
         match try_spawn(prog, working_dir, args, cols, rows) {
             Ok(result) => {
+                logger::log_info(&format!("spawn: candidate '{}' succeeded, starting reader thread", prog));
                 let buffer = Arc::new(Mutex::new(Vec::new()));
                 let stop = Arc::new(AtomicBool::new(false));
 
                 let buf_clone = buffer.clone();
                 let stop_clone = stop.clone();
+                let thread_id = id.to_string();
                 thread::spawn(move || {
                     let mut buf = [0u8; 8192];
                     let mut reader = result.reader;
+                    let mut total_read: usize = 0;
+                    logger::log_info(&format!("reader_thread STARTED: id={}", thread_id));
                     loop {
                         if stop_clone.load(Ordering::Relaxed) {
+                            logger::log_info(&format!("reader_thread STOPPED: id={}", thread_id));
                             break;
                         }
                         match reader.read(&mut buf) {
-                            Ok(0) => break,
+                            Ok(0) => {
+                                logger::log_info(&format!("reader_thread EOF: id={}, total_read={}", thread_id, total_read));
+                                break;
+                            }
                             Ok(n) => {
+                                total_read += n;
                                 if let Ok(mut b) = buf_clone.lock() {
                                     b.extend_from_slice(&buf[..n]);
+                                }
+                                // Only log periodically to avoid flooding
+                                if total_read % 4096 < n {
+                                    logger::log_info(&format!("reader_thread DATA: id={}, chunk={}, total={}", thread_id, n, total_read));
                                 }
                             }
                             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                                 thread::sleep(Duration::from_millis(1));
                                 continue;
                             }
-                            Err(_) => break,
+                            Err(e) => {
+                                logger::log_error(&format!("reader_thread ERROR: id={}, err={}", thread_id, e));
+                                break;
+                            }
                         }
                     }
+                    logger::log_info(&format!("reader_thread EXITED: id={}, total_read={}", thread_id, total_read));
                 });
 
                 let session = PtySession {
@@ -120,33 +164,45 @@ pub fn spawn(
 
                 let mut map = sessions().lock().map_err(|e| e.to_string())?;
                 map.insert(id.to_string(), session);
+                logger::log_info(&format!("spawn COMPLETE: id={}", id));
                 return Ok(());
             }
             Err(e) => {
+                logger::log_error(&format!("spawn: candidate '{}' failed: {}", prog, e));
                 last_err = e;
                 continue;
             }
         }
     }
 
-    Err(format!(
-        "Failed to spawn. Tried: {}. Last error: {}",
-        candidates.join(", "),
-        last_err
-    ))
+    let msg = format!("Failed to spawn. Tried: {}. Last error: {}", candidates.join(", "), last_err);
+    logger::log_error(&msg);
+    Err(msg)
 }
 
 pub fn write_to(id: &str, data: &[u8]) -> Result<usize, String> {
     let map = sessions().lock().map_err(|e| e.to_string())?;
-    let session = map.get(id).ok_or_else(|| format!("unknown pty id: {}", id))?;
+    let session = map.get(id).ok_or_else(|| {
+        let msg = format!("write_to: unknown pty id: {}", id);
+        logger::log_error(&msg);
+        msg
+    })?;
     let mut writer = session.writer.lock().map_err(|e| e.to_string())?;
-    writer.write_all(data).map_err(|e| e.to_string())?;
+    writer.write_all(data).map_err(|e| {
+        let msg = format!("write_to write failed: id={}, err={}", id, e);
+        logger::log_error(&msg);
+        msg
+    })?;
     Ok(data.len())
 }
 
 pub fn read_from(id: &str, buf: &mut [u8]) -> Result<usize, String> {
     let map = sessions().lock().map_err(|e| e.to_string())?;
-    let session = map.get(id).ok_or_else(|| format!("unknown pty id: {}", id))?;
+    let session = map.get(id).ok_or_else(|| {
+        let msg = format!("read_from: unknown pty id: {}", id);
+        logger::log_error(&msg);
+        msg
+    })?;
     let mut buffer = session.buffer.lock().map_err(|e| e.to_string())?;
     let available = buffer.len().min(buf.len());
     if available > 0 {
@@ -170,7 +226,15 @@ pub fn close(id: &str) -> Result<(), String> {
 
 pub fn available(id: &str) -> Result<usize, String> {
     let map = sessions().lock().map_err(|e| e.to_string())?;
-    let session = map.get(id).ok_or_else(|| format!("unknown pty id: {}", id))?;
+    let session = map.get(id).ok_or_else(|| {
+        let msg = format!("available: unknown pty id: {}", id);
+        logger::log_error(&msg);
+        msg
+    })?;
     let buffer = session.buffer.lock().map_err(|e| e.to_string())?;
-    Ok(buffer.len())
+    let len = buffer.len();
+    if len > 0 {
+        logger::log_info(&format!("available: id={}, bytes={}", id, len));
+    }
+    Ok(len)
 }
