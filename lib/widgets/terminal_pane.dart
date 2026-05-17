@@ -7,14 +7,45 @@ import 'package:xterm/xterm.dart';
 import '../models/workspace_config.dart';
 import '../services/terminal_service.dart';
 
+TerminalTheme convertTheme(TerminalThemeConfig cfg) {
+  Color hex(String s) => Color(int.parse(s.replaceFirst('#', '0xFF')));
+  return TerminalTheme(
+    background: hex(cfg.background),
+    foreground: hex(cfg.foreground),
+    cursor: hex(cfg.cursor),
+    selection: hex(cfg.selection),
+    black: hex(cfg.black),
+    red: hex(cfg.red),
+    green: hex(cfg.green),
+    yellow: hex(cfg.yellow),
+    blue: hex(cfg.blue),
+    magenta: hex(cfg.magenta),
+    cyan: hex(cfg.cyan),
+    white: hex(cfg.white),
+    brightBlack: hex(cfg.brightBlack),
+    brightRed: hex(cfg.brightRed),
+    brightGreen: hex(cfg.brightGreen),
+    brightYellow: hex(cfg.brightYellow),
+    brightBlue: hex(cfg.brightBlue),
+    brightMagenta: hex(cfg.brightMagenta),
+    brightCyan: hex(cfg.brightCyan),
+    brightWhite: hex(cfg.brightWhite),
+    searchHitForeground: hex(cfg.searchHitForeground),
+    searchHitBackground: hex(cfg.searchHitBackground),
+    searchHitBackgroundCurrent: hex(cfg.searchHitBackgroundCurrent),
+  );
+}
+
 class TerminalPane extends StatefulWidget {
   final String leafId;
   final PaneLeaf config;
+  final TerminalThemeConfig? themeConfig;
 
   const TerminalPane({
     super.key,
     required this.leafId,
     required this.config,
+    this.themeConfig,
   });
 
   @override
@@ -75,34 +106,11 @@ class _TerminalPaneState extends State<TerminalPane> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = widget.themeConfig ?? TerminalThemeConfig.defaults();
     return TerminalView(
       _terminal,
       autofocus: true,
-      theme: const TerminalTheme(
-        background: Color(0xFF1E1E1E),
-        foreground: Color(0xFFCCCCCC),
-        cursor: Color(0xFFCCCCCC),
-        selection: Color(0xFF264F78),
-        black: Color(0xFF000000),
-        red: Color(0xFFCD3131),
-        green: Color(0xFF0DBC79),
-        yellow: Color(0xFFE5E510),
-        blue: Color(0xFF2472C8),
-        magenta: Color(0xFFBC3FBC),
-        cyan: Color(0xFF11A8CD),
-        white: Color(0xFFE5E5E5),
-        brightBlack: Color(0xFF666666),
-        brightRed: Color(0xFFF14C4C),
-        brightGreen: Color(0xFF23D18B),
-        brightYellow: Color(0xFFF5F543),
-        brightBlue: Color(0xFF3B8EEA),
-        brightMagenta: Color(0xFFD670D6),
-        brightCyan: Color(0xFF29B8DB),
-        brightWhite: Color(0xFFE5E5E5),
-        searchHitForeground: Color(0xFF000000),
-        searchHitBackground: Color(0xFFFFD700),
-        searchHitBackgroundCurrent: Color(0xFFFFA500),
-      ),
+      theme: convertTheme(theme),
     );
   }
 }

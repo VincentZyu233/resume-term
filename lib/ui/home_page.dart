@@ -155,7 +155,11 @@ class _HomePageState extends State<HomePage> {
     final selectedLeaf = session.findLeaf(selectedId);
     if (selectedLeaf == null) return;
 
-    int countLeaves(PaneNode n) => n is PaneLeaf ? 1 : countLeaves((n as PaneSplit).first) + countLeaves((n as PaneSplit).second);
+    int countLeaves(PaneNode n) {
+      if (n is PaneLeaf) return 1;
+      if (n is PaneSplit) return countLeaves(n.first) + countLeaves(n.second);
+      return 0;
+    }
     final paneNumber = countLeaves(session.root) + 1;
     final newLeaf = selectedLeaf.copyWith(
       id: 'leaf-${DateTime.now().microsecondsSinceEpoch}',
@@ -334,6 +338,7 @@ class _HomePageState extends State<HomePage> {
                                   selectedLeafId: _selectedLeafId,
                                   onSelectLeaf: _selectLeaf,
                                   onSplit: (action, leafId) => _splitSelectedPane(action, constraints, targetLeafId: leafId),
+                                  terminalThemeConfig: config.terminalTheme,
                                 ),
                               ),
                             ),
@@ -528,12 +533,14 @@ class WorkspaceTree extends StatelessWidget {
     required this.selectedLeafId,
     required this.onSelectLeaf,
     required this.onSplit,
+    required this.terminalThemeConfig,
   });
 
   final PaneNode root;
   final String? selectedLeafId;
   final ValueChanged<String> onSelectLeaf;
   final void Function(SplitAction action, String leafId) onSplit;
+  final TerminalThemeConfig terminalThemeConfig;
 
   @override
   Widget build(BuildContext context) {
@@ -542,6 +549,7 @@ class WorkspaceTree extends StatelessWidget {
       selectedLeafId: selectedLeafId,
       onSelectLeaf: onSelectLeaf,
       onSplit: onSplit,
+      terminalThemeConfig: terminalThemeConfig,
     );
   }
 }
@@ -661,12 +669,14 @@ class _PaneNodeView extends StatelessWidget {
     required this.selectedLeafId,
     required this.onSelectLeaf,
     required this.onSplit,
+    required this.terminalThemeConfig,
   });
 
   final PaneNode node;
   final String? selectedLeafId;
   final ValueChanged<String> onSelectLeaf;
   final void Function(SplitAction action, String leafId) onSplit;
+  final TerminalThemeConfig terminalThemeConfig;
 
   @override
   Widget build(BuildContext context) {
@@ -713,7 +723,7 @@ class _PaneNodeView extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                  child: TerminalPane(leafId: leaf.id, config: leaf),
+                  child: TerminalPane(leafId: leaf.id, config: leaf, themeConfig: terminalThemeConfig),
                 ),
               ],
             ),
@@ -733,6 +743,7 @@ class _PaneNodeView extends StatelessWidget {
           selectedLeafId: selectedLeafId,
           onSelectLeaf: onSelectLeaf,
           onSplit: onSplit,
+          terminalThemeConfig: terminalThemeConfig,
         ),
       ),
       Expanded(
@@ -742,6 +753,7 @@ class _PaneNodeView extends StatelessWidget {
           selectedLeafId: selectedLeafId,
           onSelectLeaf: onSelectLeaf,
           onSplit: onSplit,
+          terminalThemeConfig: terminalThemeConfig,
         ),
       ),
     ];

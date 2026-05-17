@@ -318,12 +318,153 @@ class WorkspaceSession {
   }
 }
 
+class TerminalThemeConfig {
+  TerminalThemeConfig({
+    required this.background,
+    required this.foreground,
+    required this.cursor,
+    required this.selection,
+    required this.black,
+    required this.red,
+    required this.green,
+    required this.yellow,
+    required this.blue,
+    required this.magenta,
+    required this.cyan,
+    required this.white,
+    required this.brightBlack,
+    required this.brightRed,
+    required this.brightGreen,
+    required this.brightYellow,
+    required this.brightBlue,
+    required this.brightMagenta,
+    required this.brightCyan,
+    required this.brightWhite,
+    required this.searchHitForeground,
+    required this.searchHitBackground,
+    required this.searchHitBackgroundCurrent,
+  });
+
+  factory TerminalThemeConfig.defaults() => TerminalThemeConfig(
+        background: '#1E1E1E',
+        foreground: '#CCCCCC',
+        cursor: '#CCCCCC',
+        selection: '#264F78',
+        black: '#000000',
+        red: '#CD3131',
+        green: '#0DBC79',
+        yellow: '#E5E510',
+        blue: '#2472C8',
+        magenta: '#BC3FBC',
+        cyan: '#11A8CD',
+        white: '#E5E5E5',
+        brightBlack: '#666666',
+        brightRed: '#F14C4C',
+        brightGreen: '#23D18B',
+        brightYellow: '#F5F543',
+        brightBlue: '#3B8EEA',
+        brightMagenta: '#D670D6',
+        brightCyan: '#29B8DB',
+        brightWhite: '#E5E5E5',
+        searchHitForeground: '#000000',
+        searchHitBackground: '#FFD700',
+        searchHitBackgroundCurrent: '#FFA500',
+      );
+
+  factory TerminalThemeConfig.fromMap(dynamic json) {
+    if (json is! Map) return TerminalThemeConfig.defaults();
+    final m = json is Map<String, dynamic>
+        ? json
+        : json.map((k, v) => MapEntry(k.toString(), v.toString()));
+    final d = TerminalThemeConfig.defaults();
+    String g(String key, String fallback) =>
+        m[key] is String ? m[key] as String : fallback;
+    return TerminalThemeConfig(
+      background: g('background', d.background),
+      foreground: g('foreground', d.foreground),
+      cursor: g('cursor', d.cursor),
+      selection: g('selection', d.selection),
+      black: g('black', d.black),
+      red: g('red', d.red),
+      green: g('green', d.green),
+      yellow: g('yellow', d.yellow),
+      blue: g('blue', d.blue),
+      magenta: g('magenta', d.magenta),
+      cyan: g('cyan', d.cyan),
+      white: g('white', d.white),
+      brightBlack: g('bright_black', d.brightBlack),
+      brightRed: g('bright_red', d.brightRed),
+      brightGreen: g('bright_green', d.brightGreen),
+      brightYellow: g('bright_yellow', d.brightYellow),
+      brightBlue: g('bright_blue', d.brightBlue),
+      brightMagenta: g('bright_magenta', d.brightMagenta),
+      brightCyan: g('bright_cyan', d.brightCyan),
+      brightWhite: g('bright_white', d.brightWhite),
+      searchHitForeground: g('search_hit_foreground', d.searchHitForeground),
+      searchHitBackground: g('search_hit_background', d.searchHitBackground),
+      searchHitBackgroundCurrent:
+          g('search_hit_background_current', d.searchHitBackgroundCurrent),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'background': background,
+        'foreground': foreground,
+        'cursor': cursor,
+        'selection': selection,
+        'black': black,
+        'red': red,
+        'green': green,
+        'yellow': yellow,
+        'blue': blue,
+        'magenta': magenta,
+        'cyan': cyan,
+        'white': white,
+        'bright_black': brightBlack,
+        'bright_red': brightRed,
+        'bright_green': brightGreen,
+        'bright_yellow': brightYellow,
+        'bright_blue': brightBlue,
+        'bright_magenta': brightMagenta,
+        'bright_cyan': brightCyan,
+        'bright_white': brightWhite,
+        'search_hit_foreground': searchHitForeground,
+        'search_hit_background': searchHitBackground,
+        'search_hit_background_current': searchHitBackgroundCurrent,
+      };
+
+  final String background;
+  final String foreground;
+  final String cursor;
+  final String selection;
+  final String black;
+  final String red;
+  final String green;
+  final String yellow;
+  final String blue;
+  final String magenta;
+  final String cyan;
+  final String white;
+  final String brightBlack;
+  final String brightRed;
+  final String brightGreen;
+  final String brightYellow;
+  final String brightBlue;
+  final String brightMagenta;
+  final String brightCyan;
+  final String brightWhite;
+  final String searchHitForeground;
+  final String searchHitBackground;
+  final String searchHitBackgroundCurrent;
+}
+
 class WorkspaceConfig {
   WorkspaceConfig({
     required this.version,
     required this.configDir,
     this.startupSessionId,
     required this.sessions,
+    required this.terminalTheme,
   });
 
   factory WorkspaceConfig.defaults({required String configDir}) {
@@ -337,6 +478,7 @@ class WorkspaceConfig {
       configDir: configDir,
       startupSessionId: defaultSession.id,
       sessions: <WorkspaceSession>[defaultSession],
+      terminalTheme: TerminalThemeConfig.defaults(),
     );
   }
 
@@ -360,6 +502,12 @@ class WorkspaceConfig {
       }
     }
 
+    dynamic themeRaw;
+    if (json['theme'] is Map) {
+      themeRaw = _map(json['theme'])['terminal'];
+    }
+    final terminalTheme = TerminalThemeConfig.fromMap(themeRaw);
+
     return WorkspaceConfig(
       version: _int(json['version'], fallback: 1),
       configDir: _string(json['config_dir']),
@@ -373,6 +521,7 @@ class WorkspaceConfig {
               ),
             ]
           : sessions,
+      terminalTheme: terminalTheme,
     );
   }
 
@@ -380,6 +529,7 @@ class WorkspaceConfig {
   final String configDir;
   final String? startupSessionId;
   final List<WorkspaceSession> sessions;
+  final TerminalThemeConfig terminalTheme;
 
   WorkspaceSession get activeSession {
     if (startupSessionId != null) {
@@ -394,12 +544,14 @@ class WorkspaceConfig {
     String? configDir,
     String? startupSessionId,
     List<WorkspaceSession>? sessions,
+    TerminalThemeConfig? terminalTheme,
   }) {
     return WorkspaceConfig(
       version: version ?? this.version,
       configDir: configDir ?? this.configDir,
       startupSessionId: startupSessionId ?? this.startupSessionId,
       sessions: sessions ?? this.sessions,
+      terminalTheme: terminalTheme ?? this.terminalTheme,
     );
   }
 
@@ -408,6 +560,7 @@ class WorkspaceConfig {
       'version': version,
       'config_dir': configDir,
       'sessions': sessions.map((session) => session.toMap()).toList(),
+      'theme': <String, dynamic>{'terminal': terminalTheme.toMap()},
     };
     if (startupSessionId != null && startupSessionId!.isNotEmpty) {
       map['startup_session_id'] = startupSessionId;
