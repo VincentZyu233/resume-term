@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize, PtySystem, ChildKiller};
+use portable_pty::{native_pty_system, CommandBuilder, PtySize, ChildKiller};
 
 pub struct PtySession {
     pub buffer: Arc<Mutex<Vec<u8>>>,
@@ -53,7 +53,7 @@ pub fn spawn(
     cmd.env("TERM", "xterm-256color");
 
     let child_killer = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
-    let reader = pair.master.try_reader().map_err(|e| e.to_string())?;
+    let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
     let buffer = Arc::new(Mutex::new(Vec::new()));
