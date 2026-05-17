@@ -58,15 +58,56 @@ final class NativeBridge {
   }
 
   static NativeBridge _load() {
-    DynamicLibrary lib;
+    final String libName;
     if (Platform.isWindows) {
-      lib = DynamicLibrary.open('resume_term_core.dll');
+      libName = 'resume_term_core.dll';
     } else if (Platform.isLinux) {
-      lib = DynamicLibrary.open('libresume_term_core.so');
+      libName = 'libresume_term_core.so';
     } else {
+      _writeFallbackLog('Unsupported platform: ${Platform.operatingSystem}');
       throw UnsupportedError('resume-term only supports Windows and Linux');
     }
-    return NativeBridge._(lib);
+
+    try {
+      final lib = DynamicLibrary.open(libName);
+      _writeFallbackLog('DLL loaded successfully: $libName');
+      return NativeBridge._(lib);
+    } catch (e, st) {
+      final logPath = _writeFallbackLog(
+        'Failed to load $libName: $e\nStack trace:\n$st',
+      );
+      throw Exception(
+        'Failed to load native library "$libName".\n'
+        'Log written to: $logPath\n'
+        'Error: $e',
+      );
+    }
+  }
+
+  static String _writeFallbackLog(String message) {
+    String exeDir;
+    try {
+      exeDir = File(Platform.resolvedExecutable).parent.path;
+      if (exeDir.startsWith('file:///')) {
+        exeDir = exeDir.substring(8);
+      } else if (exeDir.startsWith('file://')) {
+        exeDir = exeDir.substring(6);
+      }
+    } catch (_) {
+      exeDir = '.';
+    }
+
+    final logPath = '$exeDir/latest.log.txt';
+    try {
+      final logFile = File(logPath);
+      logFile.parent.createSync(recursive: true);
+      logFile.writeAsStringSync(
+        '[${DateTime.now().toIso8601String()}] [FLUTTER] $message\n',
+        mode: FileMode.write,
+      );
+    } catch (_) {}
+
+    return logPath;
   }
 
   int spawn(

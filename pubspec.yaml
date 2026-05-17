@@ -1,7 +1,7 @@
 name: resume_term
 description: Resume-Term desktop workspace manager
 publish_to: "none"
-version: 0.1.0-alpha.5+20260517
+version: 0.1.1-alpha.1+20260518
 
 environment:
   sdk: ">=3.4.0 <4.0.0"

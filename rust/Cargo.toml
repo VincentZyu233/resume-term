@@ -10,6 +10,12 @@ path = "src/lib.rs"
 crate-type = ["cdylib", "lib"]
 
 [dependencies]
-serde = { version = "1", features = ["derive"] }
-serde_yaml = "0.9"
 portable-pty = "0.8"
+ctor = "0.2"
+
+[profile.release]
+panic = "abort"
+strip = true
+lto = true
+codegen-units = 1
+opt-level = 3

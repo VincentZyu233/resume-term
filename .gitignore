@@ -11,3 +11,6 @@ pubspec.lock
 target/
 artifacts/
 
+
+tmp/
+temp/
