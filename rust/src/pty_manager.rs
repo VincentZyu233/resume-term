@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -21,26 +21,24 @@ fn sessions() -> &'static Mutex<HashMap<String, PtySession>> {
     SESSIONS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub fn spawn(
-    id: &str,
-    shell: &str,
-    executable: Option<&str>,
+struct SpawnResult {
+    reader: Box<dyn Read + Send>,
+    writer: Box<dyn Write + Send>,
+    child_killer: Box<dyn ChildKiller + Send>,
+}
+
+fn try_spawn(
+    program: &str,
     working_dir: Option<&str>,
     args: &[String],
     cols: u16,
     rows: u16,
-) -> Result<(), String> {
+) -> Result<SpawnResult, String> {
     let pty_system = native_pty_system();
-    let size = PtySize {
-        rows,
-        cols,
-        pixel_width: 0,
-        pixel_height: 0,
-    };
+    let size = PtySize { rows, cols, pixel_width: 0, pixel_height: 0 };
 
     let mut pair = pty_system.openpty(size).map_err(|e| e.to_string())?;
 
-    let program = executable.unwrap_or(shell);
     let mut cmd = CommandBuilder::new(program);
     for arg in args {
         cmd.arg(arg);
@@ -56,45 +54,86 @@ pub fn spawn(
     let reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
     let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
 
-    let buffer = Arc::new(Mutex::new(Vec::new()));
-    let stop = Arc::new(AtomicBool::new(false));
+    Ok(SpawnResult { reader, writer, child_killer })
+}
 
-    let buf_clone = buffer.clone();
-    let stop_clone = stop.clone();
-    thread::spawn(move || {
-        let mut buf = [0u8; 8192];
-        let mut reader = reader;
-        loop {
-            if stop_clone.load(Ordering::Relaxed) {
-                break;
-            }
-            match reader.read(&mut buf) {
-                Ok(0) => break,
-                Ok(n) => {
-                    if let Ok(mut b) = buf_clone.lock() {
-                        b.extend_from_slice(&buf[..n]);
-                    }
-                }
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(1));
-                    continue;
-                }
-                Err(_) => break,
-            }
-        }
-    });
+pub fn spawn(
+    id: &str,
+    shell: &str,
+    executable: Option<&str>,
+    working_dir: Option<&str>,
+    args: &[String],
+    cols: u16,
+    rows: u16,
+) -> Result<(), String> {
+    let primary = executable.unwrap_or(shell);
 
-    let session = PtySession {
-        buffer,
-        writer: Arc::new(Mutex::new(writer)),
-        stop,
-        child_killer: Some(child_killer),
+    let candidates: Vec<&str> = if cfg!(target_os = "windows") {
+        vec![primary, "powershell", "cmd"]
+    } else {
+        vec![primary, "bash", "sh"]
     };
 
-    let mut map = sessions().lock().map_err(|e| e.to_string())?;
-    map.insert(id.to_string(), session);
+    let mut seen = HashSet::new();
+    let mut last_err = String::new();
 
-    Ok(())
+    for &prog in &candidates {
+        if !seen.insert(prog) {
+            continue;
+        }
+        match try_spawn(prog, working_dir, args, cols, rows) {
+            Ok(result) => {
+                let buffer = Arc::new(Mutex::new(Vec::new()));
+                let stop = Arc::new(AtomicBool::new(false));
+
+                let buf_clone = buffer.clone();
+                let stop_clone = stop.clone();
+                thread::spawn(move || {
+                    let mut buf = [0u8; 8192];
+                    let mut reader = result.reader;
+                    loop {
+                        if stop_clone.load(Ordering::Relaxed) {
+                            break;
+                        }
+                        match reader.read(&mut buf) {
+                            Ok(0) => break,
+                            Ok(n) => {
+                                if let Ok(mut b) = buf_clone.lock() {
+                                    b.extend_from_slice(&buf[..n]);
+                                }
+                            }
+                            Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                                thread::sleep(Duration::from_millis(1));
+                                continue;
+                            }
+                            Err(_) => break,
+                        }
+                    }
+                });
+
+                let session = PtySession {
+                    buffer,
+                    writer: Arc::new(Mutex::new(result.writer)),
+                    stop,
+                    child_killer: Some(result.child_killer),
+                };
+
+                let mut map = sessions().lock().map_err(|e| e.to_string())?;
+                map.insert(id.to_string(), session);
+                return Ok(());
+            }
+            Err(e) => {
+                last_err = e;
+                continue;
+            }
+        }
+    }
+
+    Err(format!(
+        "Failed to spawn. Tried: {}. Last error: {}",
+        candidates.join(", "),
+        last_err
+    ))
 }
 
 pub fn write_to(id: &str, data: &[u8]) -> Result<usize, String> {

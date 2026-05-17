@@ -155,9 +155,11 @@ class _HomePageState extends State<HomePage> {
     final selectedLeaf = session.findLeaf(selectedId);
     if (selectedLeaf == null) return;
 
+    int countLeaves(PaneNode n) => n is PaneLeaf ? 1 : countLeaves((n as PaneSplit).first) + countLeaves((n as PaneSplit).second);
+    final paneNumber = countLeaves(session.root) + 1;
     final newLeaf = selectedLeaf.copyWith(
       id: 'leaf-${DateTime.now().microsecondsSinceEpoch}',
-      title: '${selectedLeaf.title} (new)',
+      title: 'Pane $paneNumber',
       command: '',
       args: const [],
     );

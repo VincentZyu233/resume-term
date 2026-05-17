@@ -16,7 +16,7 @@ class ResumeTermApp extends StatelessWidget {
       title: 'Resume-Term',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF4F7CAC),
+          seedColor: const Color(0xFF0175C2),
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
