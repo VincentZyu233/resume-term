@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_xterm/flutter_xterm.dart';
+import 'package:xterm/flutter.dart';
+import 'package:xterm/xterm.dart';
 
 import '../models/workspace_config.dart';
 import '../services/terminal_service.dart';
@@ -22,14 +23,22 @@ class TerminalPane extends StatefulWidget {
 }
 
 class _TerminalPaneState extends State<TerminalPane> {
-  late final TerminalController _controller;
+  late final Terminal _terminal;
   Timer? _pollTimer;
   bool _started = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = TerminalController();
+    _terminal = Terminal(
+      onOutput: _onOutput,
+      theme: TerminalTheme(
+        background: const Color(0xFF1E1E1E),
+        foreground: const Color(0xFF00FF00),
+        cursor: const Color(0xFF00FF00),
+        selection: const Color(0xFF6A8759),
+      ),
+    );
     _startTerminal();
   }
 
@@ -42,7 +51,7 @@ class _TerminalPaneState extends State<TerminalPane> {
         (_) => _poll(),
       );
     } catch (e) {
-      _controller.write('Failed to start terminal: $e\r\n');
+      _terminal.write('Failed to start terminal: $e\r\n');
     }
   }
 
@@ -51,7 +60,7 @@ class _TerminalPaneState extends State<TerminalPane> {
     try {
       final data = TerminalService.instance.read(widget.leafId);
       if (data.isNotEmpty) {
-        _controller.write(utf8.decode(data));
+        _terminal.write(utf8.decode(data));
       }
     } catch (_) {}
   }
@@ -68,22 +77,15 @@ class _TerminalPaneState extends State<TerminalPane> {
     if (_started) {
       TerminalService.instance.stop(widget.leafId);
     }
-    _controller.dispose();
+    _terminal.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Terminal(
-      controller: _controller,
-      onOutput: _onOutput,
-      style: const TerminalStyle(
-        background: Colors.black87,
-        foreground: Colors.greenAccent,
-        cursor: Colors.greenAccent,
-        fontSize: 13.0,
-        fontFamily: 'monospace',
-      ),
+    return TerminalView(
+      _terminal,
+      autofocus: true,
     );
   }
 }
