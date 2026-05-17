@@ -31,31 +31,6 @@ class _TerminalPaneState extends State<TerminalPane> {
     super.initState();
     _terminal = Terminal(
       onOutput: _onOutput,
-      theme: TerminalTheme(
-        background: const Color(0xFF1E1E1E),
-        foreground: const Color(0xFF00FF00),
-        cursor: const Color(0xFF00FF00),
-        selection: const Color(0xFF6A8759),
-        black: const Color(0xFF000000),
-        red: const Color(0xFFAA0000),
-        green: const Color(0xFF00AA00),
-        yellow: const Color(0xFFAA5500),
-        blue: const Color(0xFF0000AA),
-        magenta: const Color(0xFFAA00AA),
-        cyan: const Color(0xFF00AAAA),
-        white: const Color(0xFFAAAAAA),
-        brightBlack: const Color(0xFF555555),
-        brightRed: const Color(0xFFFF5555),
-        brightGreen: const Color(0xFF55FF55),
-        brightYellow: const Color(0xFFFFFF55),
-        brightBlue: const Color(0xFF5555FF),
-        brightMagenta: const Color(0xFFFF55FF),
-        brightCyan: const Color(0xFF55FFFF),
-        brightWhite: const Color(0xFFFFFFFF),
-        searchHitForeground: const Color(0xFF000000),
-        searchHitBackground: const Color(0xFFFFD700),
-        searchHitBackgroundCurrent: const Color(0xFFFFA500),
-      ),
     );
     _startTerminal();
   }
@@ -103,6 +78,31 @@ class _TerminalPaneState extends State<TerminalPane> {
     return TerminalView(
       _terminal,
       autofocus: true,
+      theme: const TerminalTheme(
+        background: Color(0xFF1E1E1E),
+        foreground: Color(0xFF00FF00),
+        cursor: Color(0xFF00FF00),
+        selection: Color(0xFF6A8759),
+        black: Color(0xFF000000),
+        red: Color(0xFFAA0000),
+        green: Color(0xFF00AA00),
+        yellow: Color(0xFFAA5500),
+        blue: Color(0xFF0000AA),
+        magenta: Color(0xFFAA00AA),
+        cyan: Color(0xFF00AAAA),
+        white: Color(0xFFAAAAAA),
+        brightBlack: Color(0xFF555555),
+        brightRed: Color(0xFFFF5555),
+        brightGreen: Color(0xFF55FF55),
+        brightYellow: Color(0xFFFFFF55),
+        brightBlue: Color(0xFF5555FF),
+        brightMagenta: Color(0xFFFF55FF),
+        brightCyan: Color(0xFF55FFFF),
+        brightWhite: Color(0xFFFFFFFF),
+        searchHitForeground: Color(0xFF000000),
+        searchHitBackground: Color(0xFFFFD700),
+        searchHitBackgroundCurrent: Color(0xFFFFA500),
+      ),
     );
   }
 }
